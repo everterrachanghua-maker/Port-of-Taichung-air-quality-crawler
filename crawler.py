@@ -1,11 +1,11 @@
 import time
 import json
-import os
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import Select
+from selenium.webdriver.support.ui import Select, WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 def scrape_data():
@@ -15,6 +15,7 @@ def scrape_data():
     chrome_options.add_argument("--disable-dev-shm-usage")
     
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    wait = WebDriverWait(driver, 20) # 最多等待 20 秒
     
     stations = ["台電梧棲", "港務工作船渠", "港務南突堤", "港務中泊渠", "台電清水"]
     results = []
@@ -22,25 +23,24 @@ def scrape_data():
     try:
         url = "https://airtw.moenv.gov.tw/cht/EnvMonitoring/Local/LocalMonitoring.aspx?Type=Tcc"
         driver.get(url)
-        time.sleep(10) # 初始載入給久一點
 
-        # 1. 選擇「中部空品區」
-        area_select = Select(driver.find_element(By.ID, "cp_content_ddl_Area"))
-        area_select.select_by_visible_text("中部空品區")
-        time.sleep(3)
+        # 1. 等待並選擇「中部空品區」
+        area_el = wait.until(EC.presence_of_element_located((By.ID, "cp_content_ddl_Area")))
+        Select(area_el).select_by_visible_text("中部空品區")
+        time.sleep(3) # 給網頁一點反應時間切換測站清單
 
         for st in stations:
             print(f"正在抓取: {st}...")
             # 2. 選擇「測站名稱」
-            station_select = Select(driver.find_element(By.ID, "cp_content_ddl_Station"))
-            station_select.select_by_visible_text(st)
-            time.sleep(2)
+            station_el = wait.until(EC.presence_of_element_located((By.ID, "cp_content_ddl_Station")))
+            Select(station_el).select_by_visible_text(st)
             
             # 3. 點擊「查詢」
-            driver.find_element(By.ID, "cp_content_btn_Query").click()
+            btn = wait.until(EC.element_to_be_clickable((By.ID, "cp_content_btn_Query")))
+            btn.click()
             time.sleep(5) # 等待數據刷新
             
-            # 4. 抓取數據 (使用 class 定位)
+            # 4. 抓取數據
             try:
                 data = {
                     "station": st,
@@ -53,16 +53,16 @@ def scrape_data():
                     "NO2": driver.find_element(By.CSS_SELECTOR, ".p_no2").text
                 }
                 results.append(data)
-                print(f"{st} 抓取完成")
-            except Exception as e:
-                print(f"{st} 抓取失敗: {e}")
+                print(f"{st} 成功")
+            except:
+                print(f"{st} 抓取某欄位失敗，跳過")
 
-        # 儲存結果為 JSON
         with open("air_quality.json", "w", encoding="utf-8") as f:
             json.dump(results, f, ensure_ascii=False, indent=4)
+        print("JSON 檔案已產生成功")
             
     finally:
         driver.quit()
 
 if __name__ == "__main__":
-    scrape_data()
+    scrape_data()scrape_data()
