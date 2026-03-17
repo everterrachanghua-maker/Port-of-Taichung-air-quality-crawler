@@ -2,7 +2,7 @@ name: Auto Air Quality Scraper
 
 on:
   schedule:
-    - cron: '10 * * * *'  # 每小時的 10 分自動執行 (UTC時間，台灣時間可能會有誤差，但會定時執行)
+    - cron: '30 * * * *'  # 每小時的 30 分自動執行 (UTC時間，台灣時間可能會有誤差，但會定時執行)
   workflow_dispatch:      # 讓你可以手動按按鈕執行測試
 
 permissions:
