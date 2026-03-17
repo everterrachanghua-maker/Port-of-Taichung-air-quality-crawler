@@ -1,0 +1,33 @@
+name: Auto Air Quality Scraper
+
+on:
+  schedule:
+    - cron: '0 * * * *' # 每小時執行一次 (整點)
+  workflow_dispatch:      # 允許手動點按鈕測試
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install selenium webdriver-manager pandas
+
+      - name: Run crawler
+        run: python crawler.py
+
+      - name: Commit and push if data changed
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add air_quality.csv
+          git commit -m "Auto-update air quality data" || exit 0
+          git push
