@@ -12,13 +12,14 @@
         th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
         th { background-color: #4CAF50; color: white; }
         tr:nth-child(even) { background-color: #f2f2f2; }
-        .time-info { text-align: right; font-size: 0.9em; color: #666; }
+        .time-info { text-align: right; font-size: 0.9em; color: #666; margin-bottom: 10px; }
+        .loading { color: #f39c12; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>中部港區空氣品質即時監測</h1>
-        <div id="update-time" class="time-info">正在載入數據...</div>
+        <div id="update-time" class="time-info">最後更新時間：確認中...</div>
         <table id="data-table">
             <thead>
                 <tr>
@@ -31,49 +32,50 @@
                     <th>NO2 (ppb)</th>
                 </tr>
             </thead>
-            <!-- 在 tbody 加上 id 以便讀取 -->
-            <tbody id="data-body"></tbody>
+            <tbody id="data-body">
+                <!-- 預設顯示名稱，數據顯示為讀取中 -->
+                <tr data-st="台電梧棲"><td><strong>台電梧棲</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
+                <tr data-st="港務工作船渠"><td><strong>港務工作船渠</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
+                <tr data-st="港務南突堤"><td><strong>港務南突堤</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
+                <tr data-st="港務中泊渠"><td><strong>港務中泊渠</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
+                <tr data-st="台電清水"><td><strong>台電清水</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
+            </tbody>
         </table>
     </div>
 
     <script>
-        // 使用時間戳記防止瀏覽器快取 (Cache)
+        // 加入時間戳記避免讀取到舊的快取
         fetch('air_quality.json?t=' + new Date().getTime())
             .then(res => res.json())
             .then(data => {
-                const tbody = document.getElementById('data-body');
                 const updateEl = document.getElementById('update-time');
                 
-                // 檢查資料是否有效
-                if (!data || data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7">正在抓取最新資料，請稍候...</td></tr>';
-                    return;
+                if (data && data.length > 0) {
+                    // 如果有抓到資料，更新時間與表格數值
+                    updateEl.innerText = '最後更新時間：' + data[0].time;
+                    
+                    data.forEach(item => {
+                        // 根據測站名稱找到對應的表格行
+                        const row = document.querySelector(`tr[data-st="${item.station}"]`);
+                        if (row) {
+                            const cells = row.querySelectorAll('.val');
+                            cells[0].innerText = item.O3;
+                            cells[1].innerText = item.PM25;
+                            cells[2].innerText = item.PM10;
+                            cells[3].innerText = item.CO;
+                            cells[4].innerText = item.SO2;
+                            cells[5].innerText = item.NO2;
+                        }
+                    });
+                } else {
+                    updateEl.innerText = '最後更新時間：尚無成功數據 (爬蟲執行中)';
+                    const allVals = document.querySelectorAll('.val');
+                    allVals.forEach(v => v.innerText = '等待中');
                 }
-
-                // 更新最後顯示時間 (取第一筆資料的時間)
-                updateEl.innerText = '最後更新時間：' + (data[0].time || '未知');
-                
-                // 清空現有表格內容
-                tbody.innerHTML = ''; 
-                
-                // 跑迴圈產生表格列
-                data.forEach(item => {
-                    const row = `<tr>
-                        <td><strong>${item.station}</strong></td>
-                        <td>${item.O3 || '-'}</td>
-                        <td>${item.PM25 || '-'}</td>
-                        <td>${item.PM10 || '-'}</td>
-                        <td>${item.CO || '-'}</td>
-                        <td>${item.SO2 || '-'}</td>
-                        <td>${item.NO2 || '-'}</td>
-                    </tr>`;
-                    tbody.innerHTML += row;
-                });
             })
             .catch(err => {
                 console.error('無法讀取數據:', err);
-                document.getElementById('update-time').innerText = '載入失敗：無法連接數據源';
-                document.getElementById('data-body').innerHTML = '<tr><td colspan="7">資料載入失敗，請確認 air_quality.json 是否存在。</td></tr>';
+                document.getElementById('update-time').innerText = '狀態：檔案載入中，請稍候...';
             });
     </script>
 </body>
