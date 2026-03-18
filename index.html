@@ -13,7 +13,10 @@
         th { background-color: #4CAF50; color: white; }
         tr:nth-child(even) { background-color: #f2f2f2; }
         .time-info { text-align: right; font-size: 0.9em; color: #666; margin-bottom: 10px; }
-        .loading { color: #f39c12; font-weight: bold; }
+        
+        /* 針對「數據接收中」的特殊樣式 */
+        .status-waiting { color: #e67e22; font-weight: bold; font-size: 0.85em; }
+        .val { font-weight: bold; }
     </style>
 </head>
 <body>
@@ -33,7 +36,7 @@
                 </tr>
             </thead>
             <tbody id="data-body">
-                <!-- 預設顯示名稱，數據顯示為讀取中 -->
+                <!-- 固定測站名稱 -->
                 <tr data-st="台電梧棲"><td><strong>台電梧棲</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
                 <tr data-st="港務工作船渠"><td><strong>港務工作船渠</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
                 <tr data-st="港務南突堤"><td><strong>港務南突堤</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
@@ -44,38 +47,40 @@
     </div>
 
     <script>
-        // 加入時間戳記避免讀取到舊的快取
+        function formatValue(val) {
+            if (val === "數據接收中") {
+                return `<span class="status-waiting">數據接收中</span>`;
+            }
+            return val || "-";
+        }
+
         fetch('air_quality.json?t=' + new Date().getTime())
             .then(res => res.json())
             .then(data => {
                 const updateEl = document.getElementById('update-time');
                 
                 if (data && data.length > 0) {
-                    // 如果有抓到資料，更新時間與表格數值
                     updateEl.innerText = '最後更新時間：' + data[0].time;
                     
                     data.forEach(item => {
-                        // 根據測站名稱找到對應的表格行
                         const row = document.querySelector(`tr[data-st="${item.station}"]`);
                         if (row) {
                             const cells = row.querySelectorAll('.val');
-                            cells[0].innerText = item.O3;
-                            cells[1].innerText = item.PM25;
-                            cells[2].innerText = item.PM10;
-                            cells[3].innerText = item.CO;
-                            cells[4].innerText = item.SO2;
-                            cells[5].innerText = item.NO2;
+                            cells[0].innerHTML = formatValue(item.O3);
+                            cells[1].innerHTML = formatValue(item.PM25);
+                            cells[2].innerHTML = formatValue(item.PM10);
+                            cells[3].innerHTML = formatValue(item.CO);
+                            cells[4].innerHTML = formatValue(item.SO2);
+                            cells[5].innerHTML = formatValue(item.NO2);
                         }
                     });
                 } else {
                     updateEl.innerText = '最後更新時間：尚無成功數據 (爬蟲執行中)';
-                    const allVals = document.querySelectorAll('.val');
-                    allVals.forEach(v => v.innerText = '等待中');
                 }
             })
             .catch(err => {
                 console.error('無法讀取數據:', err);
-                document.getElementById('update-time').innerText = '狀態：檔案載入中，請稍候...';
+                document.getElementById('update-time').innerText = '狀態：檔案載入中...';
             });
     </script>
 </body>
