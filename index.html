@@ -31,30 +31,50 @@
                     <th>NO2 (ppb)</th>
                 </tr>
             </thead>
-            <tbody></tbody>
+            <!-- 在 tbody 加上 id 以便讀取 -->
+            <tbody id="data-body"></tbody>
         </table>
     </div>
 
     <script>
-        fetch('air_quality.json')
+        // 使用時間戳記防止瀏覽器快取 (Cache)
+        fetch('air_quality.json?t=' + new Date().getTime())
             .then(res => res.json())
             .then(data => {
-                const tbody = document.querySelector('#data-table tbody');
-                document.getElementById('update-time').innerText = '最後更新時間：' + data[0].time;
+                const tbody = document.getElementById('data-body');
+                const updateEl = document.getElementById('update-time');
+                
+                // 檢查資料是否有效
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7">正在抓取最新資料，請稍候...</td></tr>';
+                    return;
+                }
+
+                // 更新最後顯示時間 (取第一筆資料的時間)
+                updateEl.innerText = '最後更新時間：' + (data[0].time || '未知');
+                
+                // 清空現有表格內容
+                tbody.innerHTML = ''; 
+                
+                // 跑迴圈產生表格列
                 data.forEach(item => {
                     const row = `<tr>
                         <td><strong>${item.station}</strong></td>
-                        <td>${item.O3}</td>
-                        <td>${item.PM25}</td>
-                        <td>${item.PM10}</td>
-                        <td>${item.CO}</td>
-                        <td>${item.SO2}</td>
-                        <td>${item.NO2}</td>
+                        <td>${item.O3 || '-'}</td>
+                        <td>${item.PM25 || '-'}</td>
+                        <td>${item.PM10 || '-'}</td>
+                        <td>${item.CO || '-'}</td>
+                        <td>${item.SO2 || '-'}</td>
+                        <td>${item.NO2 || '-'}</td>
                     </tr>`;
                     tbody.innerHTML += row;
                 });
             })
-            .catch(err => console.error('無法讀取數據:', err));
+            .catch(err => {
+                console.error('無法讀取數據:', err);
+                document.getElementById('update-time').innerText = '載入失敗：無法連接數據源';
+                document.getElementById('data-body').innerHTML = '<tr><td colspan="7">資料載入失敗，請確認 air_quality.json 是否存在。</td></tr>';
+            });
     </script>
 </body>
 </html>
