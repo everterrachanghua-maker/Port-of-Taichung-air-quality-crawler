@@ -1,22 +1,23 @@
 import time
 import json
-import traceback
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import Select, WebDriverWait
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 def scrape_data():
-    print("=== [開始執行] 空氣品質爬蟲程序 ===")
+    print("=== [啟動] 穩定版爬蟲 (優化 ASP.NET 刷新機制) ===")
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
+    # 針對雲端環境的額外優化
+    options.add_argument("--disable-gpu")
+    options.add_argument("--disable-software-rasterizer")
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
@@ -27,85 +28,84 @@ def scrape_data():
 
     try:
         url = "https://airtw.moenv.gov.tw/cht/EnvMonitoring/Local/LocalMonitoring.aspx?Type=Tcc"
-        print(f"[1/4] 前往網址: {url}")
+        print(f"1. 正在載入網頁: {url}")
         driver.get(url)
-        time.sleep(10)
+        time.sleep(12)
 
-        # 1. 選擇「中部空品區」
-        print("[2/4] 正在切換區域至『中部空品區』...")
-        area_el = wait.until(EC.presence_of_element_located((By.ID, "cp_content_ddl_Area")))
-        Select(area_el).select_by_visible_text("中部空品區")
+        # A. 選擇區域：中部空品區 (使用 JS 觸發 __doPostBack 防止崩潰)
+        print("2. 正在切換至『中部空品區』...")
+        driver.execute_script("document.getElementById('cp_content_ddl_Area').value = '4';") # '4' 通常是中部的代碼
+        driver.execute_script("__doPostBack('ctl00$cp_content$ddl_Area','')")
         
-        # 關鍵等待：直到測站下拉選單包含我們想要的測站
-        print("      等待測站清單刷新中...")
-        for _ in range(10):
-            st_html = driver.find_element(By.ID, "cp_content_ddl_Station").get_attribute("innerHTML")
-            if "台電梧棲" in st_html:
-                print("      清單更新完成！")
-                break
-            time.sleep(2)
-        else:
-            print("      [錯誤] 測站清單似乎沒更新，嘗試繼續...")
+        print("   等待清單刷新 (12秒)...")
+        time.sleep(12)
 
         for st in stations:
-            print(f"[3/4] 抓取測站數據: {st}")
+            print(f"3. 正在處理測站: {st}")
             try:
-                # 選擇測站
-                st_select_el = wait.until(EC.element_to_be_clickable((By.ID, "cp_content_ddl_Station")))
-                Select(st_select_el).select_by_visible_text(st)
+                # B. 選擇測站 (直接操作 DOM)
+                station_el = wait.until(EC.presence_of_element_located((By.ID, "cp_content_ddl_Station")))
+                found = False
+                for option in station_el.find_elements(By.TAG_NAME, "option"):
+                    if st in option.text:
+                        option.click()
+                        found = True
+                        break
+                
+                if not found:
+                    print(f"   [錯誤] 找不到測站: {st}")
+                    continue
+
                 time.sleep(2)
 
-                # 點擊查詢
+                # C. 點擊查詢 (使用 JS 模擬點擊)
+                print(f"   執行查詢...")
                 query_btn = driver.find_element(By.ID, "cp_content_btn_Query")
                 driver.execute_script("arguments[0].click();", query_btn)
                 
-                # 等待數據標籤內容發生變化或出現
-                time.sleep(10) # 增加等待數據回傳的時間
+                # 等待數據回傳
+                time.sleep(10)
 
-                def get_v(eid):
+                # D. 抓取數據
+                def safe_get(eid):
                     try:
                         t = driver.find_element(By.ID, eid).text.strip()
                         return t if t else "未監測"
                     except: return "N/A"
 
-                issue_time = get_v("cp_content_lab_IssueTime").replace("發布時間：", "").strip()
+                issue_time = safe_get("cp_content_lab_IssueTime").replace("發布時間：", "").strip()
                 
-                if not issue_time or issue_time == "N/A":
-                    print(f"      [警告] {st} 抓取不到發布時間，可能數據尚未載入。")
+                if "N/A" in issue_time or not issue_time:
+                    print(f"   [警告] {st} 沒抓到時間，可能數據載入中")
                     continue
 
                 data = {
                     "station": st,
                     "time": issue_time,
-                    "O3": get_v("cp_content_lab_O3"),
-                    "PM25": get_v("cp_content_lab_PM25"),
-                    "PM10": get_v("cp_content_lab_PM10"),
-                    "CO": get_v("cp_content_lab_CO"),
-                    "SO2": get_v("cp_content_lab_SO2"),
-                    "NO2": get_v("cp_content_lab_NO2")
+                    "O3": safe_get("cp_content_lab_O3"),
+                    "PM25": safe_get("cp_content_lab_PM25"),
+                    "PM10": safe_get("cp_content_lab_PM10"),
+                    "CO": safe_get("cp_content_lab_CO"),
+                    "SO2": safe_get("cp_content_lab_SO2"),
+                    "NO2": safe_get("cp_content_lab_NO2")
                 }
                 results.append(data)
-                print(f"      [成功] 已抓取: {st} ({issue_time})")
+                print(f"   [成功] 數據已存入: {issue_time}")
 
-            except Exception as inner_e:
-                print(f"      [跳過] {st} 發生錯誤: {inner_e}")
+            except Exception as e:
+                print(f"   [跳過] {st} 發生異常: {str(e)}")
 
-        # 4. 存檔
-        print(f"[4/4] 任務結束，共抓取 {len(results)} 筆有效數據。")
+        # 4. 存檔 (JSON)
+        print(f"4. 任務總結: 成功抓取 {len(results)} 筆數據")
         with open("air_quality.json", "w", encoding="utf-8") as f:
             json.dump(results, f, ensure_ascii=False, indent=4)
 
     except Exception as e:
-        print("\n" + "="*50)
-        print("!!! 程式執行發生致命錯誤 !!!")
-        print(f"錯誤類型: {type(e).__name__}")
-        print(f"詳細訊息: {str(e)}")
-        print("="*50 + "\n")
-        # 即使報錯也存下一個空的 JSON，避免下一動失敗
-        with open("air_quality.json", "w", encoding="utf-8") as f:
-            json.dump([], f)
-        raise e # 重新拋出錯誤讓 Action 知道失敗
-
+        print(f"\n致命錯誤詳情:\n{str(e)}")
+        # 即使報錯也要保證有一個空的 JSON 讓 Git Push 不報錯
+        if not results:
+            with open("air_quality.json", "w", encoding="utf-8") as f: json.dump([], f)
+        raise e
     finally:
         driver.quit()
         print("=== 爬蟲程序結束 ===")
