@@ -20,13 +20,14 @@ def get_driver():
     return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
 def scrape_data():
-    print("=== [啟動] 雙網站跨站數據抓取程序 (高穩定整合版) ===")
+    print("=== [啟動] 雙網站跨站數據抓取 (結構化穩定版) ===")
     driver = get_driver()
     wait = WebDriverWait(driver, 45)
     
-    # 港區/台電測站清單
+    # 定義測站
     tcc_stations = ["台電梧棲", "港務工作船渠", "港務南突堤", "港務中泊渠", "台電清水", "台電龍井"]
-    all_results = []
+    # 初始化結果字典，對應新版 HTML 結構
+    results = {"tcc_data": [], "central_data": []}
 
     try:
         # --- 任務 1: 抓取港區/台電測站 ---
@@ -39,17 +40,19 @@ def scrape_data():
         area_el = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "select[id$='ddl_Area']")))
         Select(area_el).select_by_visible_text("中部空品區")
         
-        # 等待測站清單同步
+        # 穩定性偵測：等待測站清單同步
         print("   等待港區測站清單同步...")
+        found_list = False
         for i in range(20):
             st_text = driver.find_element(By.CSS_SELECTOR, "select[id$='ddl_Station']").text
             if "台電梧棲" in st_text:
                 print(f"   [OK] 港區清單同步成功 (嘗試第 {i+1} 次)")
+                found_list = True
                 break
             time.sleep(2)
 
         for st in tcc_stations:
-            print(f"   處理測站: {st}")
+            print(f"   處理港區測站: {st}")
             try:
                 st_select = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "select[id$='ddl_Station']")))
                 Select(st_select).select_by_visible_text(st)
@@ -63,13 +66,14 @@ def scrape_data():
                         return val if val != "" else "N/A"
                     except: return "N/A"
 
-                all_results.append({
+                results["tcc_data"].append({
                     "station": st,
                     "time": g_v("lab_IssueTime").replace("發布時間：", "").strip(),
                     "O3": g_v("lab_O3"), "PM25": g_v("lab_PM25"), "PM10": g_v("lab_PM10"),
                     "CO": g_v("lab_CO"), "SO2": g_v("lab_SO2"), "NO2": g_v("lab_NO2")
                 })
-            except Exception as e: print(f"   [失敗] {st}: {e}")
+            except Exception as e: 
+                print(f"   [跳過] {st} 抓取失敗: {e}")
 
         # --- 任務 2: 抓取一般監測站 (沙鹿) ---
         url_central = "https://airtw.moenv.gov.tw/CHT/EnvMonitoring/Central/CentralMonitoring.aspx"
@@ -83,9 +87,9 @@ def scrape_data():
         time.sleep(5)
         st_el = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "select[id$='ddl_Station']")))
         Select(st_el).select_by_visible_text("沙鹿")
-        time.sleep(2)
+        time.sleep(3)
         driver.execute_script("arguments[0].click();", driver.find_element(By.CSS_SELECTOR, "input[id$='btn_Query']"))
-        time.sleep(8)
+        time.sleep(12) # 沙鹿站數據較多，等待稍長
 
         def g_c(node_id):
             try: 
@@ -93,27 +97,33 @@ def scrape_data():
                 return val if val != "" else "N/A"
             except: return "N/A"
 
-        all_results.append({
-            "station": "沙鹿 (一般站)",
+        # 沙鹿站包含額外詳細氣象欄位
+        results["central_data"].append({
+            "station": "沙鹿",
             "time": g_c("lab_IssueTime").replace("發布時間：", "").strip(),
             "O3": g_c("lab_O3"), "PM25": g_c("lab_PM25"), "PM10": g_c("lab_PM10"),
-            "CO": g_c("lab_CO"), "SO2": g_c("lab_SO2"), "NO2": g_c("lab_NO2")
+            "CO": g_c("lab_CO"), "SO2": g_c("lab_SO2"), "NO2": g_c("lab_NO2"),
+            "NMHC": g_c("lab_NMHC"), 
+            "WindSpeed": g_c("lab_WindSpeed"), 
+            "WindDirect": g_c("lab_WindDirect"), 
+            "RH": g_c("lab_RH")
         })
-        print("   [成功] 沙鹿站數據獲取完成")
+        print("   [成功] 沙鹿站詳細數據獲取完成")
 
-        # --- 儲存檔案 ---
-        if all_results:
-            with open("air_quality.json", "w", encoding="utf-8") as f:
-                json.dump(all_results, f, ensure_ascii=False, indent=4)
-            print(f"=== 任務全部完成，成功抓取 {len(all_results)} 筆測站資料 ===")
-        else:
-            raise Exception("未抓取到任何資料")
+        # --- 最終存檔 ---
+        with open("air_quality.json", "w", encoding="utf-8") as f:
+            json.dump(results, f, ensure_ascii=False, indent=4)
+        print(f"=== 任務全部完成，成功更新至 air_quality.json ===")
 
     except Exception as e:
         print(f"致命錯誤: {traceback.format_exc()}")
-        # 即使報錯也回傳基礎格式，避免網頁壞掉
+        # 發生錯誤時保留基本的資料結構，防止網頁報錯
+        error_fallback = {
+            "tcc_data": [{"station": "數據重新整理中", "time": "請稍後", "O3": "-", "PM25": "-", "PM10": "-", "CO": "-", "SO2": "-", "NO2": "-"}],
+            "central_data": [{"station": "沙鹿", "time": "更新中", "O3": "-", "PM25": "-", "PM10": "-", "CO": "-", "SO2": "-", "NO2": "-", "NMHC": "-", "WindSpeed": "-", "WindDirect": "-", "RH": "-"}]
+        }
         with open("air_quality.json", "w", encoding="utf-8") as f:
-            json.dump([{"station": "數據重新整理中", "time": "請稍後", "O3": "-", "PM25": "-", "PM10": "-", "CO": "-", "SO2": "-", "NO2": "-"}], f)
+            json.dump(error_fallback, f, ensure_ascii=False, indent=4)
     finally:
         driver.quit()
 
