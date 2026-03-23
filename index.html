@@ -3,66 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>中部港區空氣品質監測</title>
+    <title>中部地區空氣品質監測儀表板</title>
     <style>
-        body { font-family: "Microsoft JhengHei", sans-serif; background: #f4f7f6; padding: 20px; }
-        .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1 { text-align: center; color: #333; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
-        th { background-color: #4CAF50; color: white; }
-        tr:nth-child(even) { background-color: #f2f2f2; }
-        .time-info { text-align: right; font-size: 0.9em; color: #666; margin-bottom: 10px; }
+        /* 整合原有樣式與新版配置 */
+        body { font-family: "Microsoft JhengHei", sans-serif; background: #f4f7f6; padding: 20px; color: #333; }
+        .container { max-width: 1100px; margin: auto; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 30px; }
+        h1 { text-align: center; color: #2c3e50; margin-bottom: 30px; }
+        h2 { color: #2c3e50; border-left: 5px solid #4CAF50; padding-left: 10px; margin-bottom: 15px; }
         
-        /* 針對「數據接收中」的特殊樣式 */
-        .status-waiting { color: #e67e22; font-weight: bold; font-size: 0.85em; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
+        th { background-color: #4CAF50; color: white; font-weight: bold; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tr:hover { background-color: #f1f1f1; }
+        
+        .time-info { text-align: right; font-size: 0.9em; color: #666; margin-bottom: 10px; }
+        .status-waiting { color: #e67e22; font-weight: bold; font-size: 0.9em; }
         .val { font-weight: bold; }
+        .highlight { background-color: #e8f5e9 !important; } /* 沙鹿站高亮 */
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>中部港區空氣品質即時監測</h1>
-        <div id="update-time" class="time-info">最後更新時間：確認中...</div>
-        <table id="data-table">
-            <thead>
-                <tr>
-                    <th>測站名稱</th>
-                    <th>O3 (ppb)</th>
-                    <th>PM2.5 (μg/m³)</th>
-                    <th>PM10 (μg/m³)</th>
-                    <th>CO (ppm)</th>
-                    <th>SO2 (ppb)</th>
-                    <th>NO2 (ppb)</th>
-                </tr>
-            </thead>
-            <tbody id="data-body">
-                <!-- 固定測站名稱 -->
-                <tr data-st="台電梧棲"><td><strong>台電梧棲</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
-                <tr data-st="港務工作船渠"><td><strong>港務工作船渠</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
-                <tr data-st="港務南突堤"><td><strong>港務南突堤</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
-                <tr data-st="港務中泊渠"><td><strong>港務中泊渠</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
-                <tr data-st="台電清水"><td><strong>台電清水</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
-            </tbody>
-        </table>
+        <h1>中部地區即時空氣品質監測</h1>
+
+        <!-- 區塊一：港務與台電測站 -->
+        <div class="card">
+            <h2>港務與台電專用測站</h2>
+            <div id="tcc-time" class="time-info">最後更新時間：確認中...</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>測站名稱</th>
+                        <th>O3 (ppb)</th>
+                        <th>PM2.5 (μg/m³)</th>
+                        <th>PM10 (μg/m³)</th>
+                        <th>CO (ppm)</th>
+                        <th>SO2 (ppb)</th>
+                        <th>NO2 (ppb)</th>
+                    </tr>
+                </thead>
+                <tbody id="tcc-body">
+                    <!-- 固定測站清單 -->
+                    <tr data-st="台電梧棲"><td><strong>台電梧棲</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
+                    <tr data-st="港務工作船渠"><td><strong>港務工作船渠</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
+                    <tr data-st="港務南突堤"><td><strong>港務南突堤</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
+                    <tr data-st="港務中泊渠"><td><strong>港務中泊渠</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
+                    <tr data-st="台電清水"><td><strong>台電清水</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
+                    <tr data-st="台電龍井"><td><strong>台電龍井</strong></td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td><td class="val">...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 區塊二：一般監測站 (沙鹿) -->
+        <div class="card">
+            <h2>一般環境監測站：沙鹿站 (詳細氣象數據)</h2>
+            <div id="central-time" class="time-info">最後更新時間：確認中...</div>
+            <table style="font-size: 0.95em;">
+                <thead>
+                    <tr>
+                        <th>測站</th>
+                        <th>O3</th>
+                        <th>PM2.5</th>
+                        <th>PM10</th>
+                        <th>CO</th>
+                        <th>SO2</th>
+                        <th>NO2</th>
+                        <th>NMHC</th>
+                        <th>風速</th>
+                        <th>風向</th>
+                        <th>濕度</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="highlight">
+                        <td><strong>沙鹿</strong></td>
+                        <td id="s-O3" class="val">...</td>
+                        <td id="s-PM25" class="val">...</td>
+                        <td id="s-PM10" class="val">...</td>
+                        <td id="s-CO" class="val">...</td>
+                        <td id="s-SO2" class="val">...</td>
+                        <td id="s-NO2" class="val">...</td>
+                        <td id="s-NMHC" class="val">...</td>
+                        <td id="s-WS" class="val">...</td>
+                        <td id="s-WD" class="val">...</td>
+                        <td id="s-RH" class="val">...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <script>
+        // 格式化函數，保留原有的橘色警告標記邏輯
         function formatValue(val) {
-            if (val === "數據接收中") {
-                return `<span class="status-waiting">數據接收中</span>`;
+            if (val === "數據接收中" || val === "更新中" || val === "N/A") {
+                return `<span class="status-waiting">更新中</span>`;
             }
             return val || "-";
         }
 
+        // 抓取 JSON 數據
         fetch('air_quality.json?t=' + new Date().getTime())
             .then(res => res.json())
             .then(data => {
-                const updateEl = document.getElementById('update-time');
                 
-                if (data && data.length > 0) {
-                    updateEl.innerText = '最後更新時間：' + data[0].time;
-                    
-                    data.forEach(item => {
+                // 1. 填入港區/台電資料 (tcc_data)
+                if (data.tcc_data && data.tcc_data.length > 0) {
+                    document.getElementById('tcc-time').innerText = '最後更新時間：' + data.tcc_data[0].time;
+                    data.tcc_data.forEach(item => {
                         const row = document.querySelector(`tr[data-st="${item.station}"]`);
                         if (row) {
                             const cells = row.querySelectorAll('.val');
@@ -74,13 +124,29 @@
                             cells[5].innerHTML = formatValue(item.NO2);
                         }
                     });
-                } else {
-                    updateEl.innerText = '最後更新時間：尚無成功數據 (爬蟲執行中)';
+                }
+
+                // 2. 填入沙鹿站資料 (central_data)
+                if (data.central_data && data.central_data.length > 0) {
+                    const s = data.central_data[0];
+                    document.getElementById('central-time').innerText = '最後更新時間：' + s.time;
+                    document.getElementById('s-O3').innerHTML = formatValue(s.O3);
+                    document.getElementById('s-PM25').innerHTML = formatValue(s.PM25);
+                    document.getElementById('s-PM10').innerHTML = formatValue(s.PM10);
+                    document.getElementById('s-CO').innerHTML = formatValue(s.CO);
+                    document.getElementById('s-SO2').innerHTML = formatValue(s.SO2);
+                    document.getElementById('s-NO2').innerHTML = formatValue(s.NO2);
+                    document.getElementById('s-NMHC').innerHTML = formatValue(s.NMHC);
+                    document.getElementById('s-WS').innerHTML = formatValue(s.WindSpeed);
+                    document.getElementById('s-WD').innerHTML = formatValue(s.WindDirect);
+                    document.getElementById('s-RH').innerHTML = formatValue(s.RH);
                 }
             })
             .catch(err => {
-                console.error('無法讀取數據:', err);
-                document.getElementById('update-time').innerText = '狀態：檔案載入中...';
+                console.error('數據加載失敗:', err);
+                const msg = '最後更新時間：載入失敗';
+                document.getElementById('tcc-time').innerText = msg;
+                document.getElementById('central-time').innerText = msg;
             });
     </script>
 </body>
