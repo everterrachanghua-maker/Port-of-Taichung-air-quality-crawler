@@ -1,30 +1,9 @@
 {
     "tcc_data": [
         {
-            "station": "數據重新整理中",
-            "time": "請稍後",
-            "O3": "-",
-            "PM25": "-",
-            "PM10": "-",
-            "CO": "-",
-            "SO2": "-",
-            "NO2": "-"
+            "station": "抓取異常",
+            "time": "請檢查 Actions Log"
         }
     ],
-    "central_data": [
-        {
-            "station": "沙鹿",
-            "time": "更新中",
-            "O3": "-",
-            "PM25": "-",
-            "PM10": "-",
-            "CO": "-",
-            "SO2": "-",
-            "NO2": "-",
-            "NMHC": "-",
-            "WindSpeed": "-",
-            "WindDirect": "-",
-            "RH": "-"
-        }
-    ]
+    "central_data": []
 }
