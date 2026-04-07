@@ -16,13 +16,13 @@ def get_driver():
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--disable-gpu")
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
     return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
 def scrape_data():
-    print("=== [啟動] 雙重偵測穩定版爬蟲 ===")
+    print("=== [啟動] 雙重偵測穩定版爬蟲 (文字選取修正版) ===")
     driver = get_driver()
-    wait = WebDriverWait(driver, 45) # 最大等待 45 秒
+    wait = WebDriverWait(driver, 45)
     
     final_results = {"tcc_data": [], "central_data": []}
 
@@ -33,12 +33,11 @@ def scrape_data():
         driver.get(url_tcc)
         time.sleep(15)
 
-        # 選擇中部空品區
-        print("   選擇: 中部空品區...")
+        print("   正在選擇區域: 中部空品區...")
         area_el = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "select[id$='ddl_Area']")))
-        Select(area_el).select_by_value("4")
+        # 修正點：改用 select_by_visible_text，這比 select_by_value(4) 穩定得多
+        Select(area_el).select_by_visible_text("中部空品區")
         
-        # 關鍵偵測：等待測站選單刷新，直到裡面出現「台電梧棲」
         print("   正在同步港區測站清單...")
         success_sync = False
         for _ in range(20):
@@ -46,7 +45,7 @@ def scrape_data():
                 st_list_text = driver.find_element(By.CSS_SELECTOR, "select[id$='ddl_Station']").text
                 if "台電梧棲" in st_list_text:
                     success_sync = True
-                    print("   [OK] 清單同步完成")
+                    print("   [OK] 港區清單同步完成")
                     break
             except: pass
             time.sleep(2)
@@ -55,8 +54,7 @@ def scrape_data():
             tcc_stations = ["台電梧棲", "港務工作船渠", "港務南突堤", "港務中泊渠", "台電清水", "台電龍井"]
             for st in tcc_stations:
                 try:
-                    print(f"   -> 抓取: {st}")
-                    # 每次循環都要重新尋找 select，防止網頁局部更新造成失效
+                    print(f"   -> 正在抓取: {st}")
                     st_sel = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "select[id$='ddl_Station']")))
                     Select(st_sel).select_by_visible_text(st)
                     time.sleep(3)
@@ -85,11 +83,11 @@ def scrape_data():
         driver.get(url_central)
         time.sleep(15)
 
-        print("   選擇: 中部空品區...")
+        print("   正在選擇區域: 中部空品區...")
         area_el2 = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "select[id$='ddl_Area']")))
-        Select(area_el2).select_by_value("4")
+        # 修正點：同樣改用文字選取
+        Select(area_el2).select_by_visible_text("中部空品區")
         
-        # 關鍵偵測：等待測站選單刷新，直到裡面出現「沙鹿」
         print("   正在同步一般測站清單...")
         success_sync_c = False
         for _ in range(20):
@@ -97,7 +95,7 @@ def scrape_data():
                 st_list_c = driver.find_element(By.CSS_SELECTOR, "select[id$='ddl_Station']").text
                 if "沙鹿" in st_list_c:
                     success_sync_c = True
-                    print("   [OK] 清單同步完成")
+                    print("   [OK] 沙鹿清單同步完成")
                     break
             except: pass
             time.sleep(2)
@@ -129,7 +127,6 @@ def scrape_data():
         print(f"程序致命錯誤: {traceback.format_exc()}")
     
     finally:
-        # 如果這次有抓到任何東西（不論是台電還是沙鹿），就更新檔案
         if len(final_results["tcc_data"]) > 0 or len(final_results["central_data"]) > 0:
             with open("air_quality.json", "w", encoding="utf-8") as f:
                 json.dump(final_results, f, ensure_ascii=False, indent=4)
