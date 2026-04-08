@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>數據管理後台</title>
+    <title>數據管理後台 (TWD97 座標版)</title>
     <style>
         body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; background: #f4f4f4; }
         .box { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
@@ -17,36 +17,33 @@
 </head>
 <body>
     <div class="box">
-        <h2>台中港監測數據手動更新</h2>
-        
+        <h2>台中港監測數據手動更新 (TWD97)</h2>
         <div class="token-box">
             <label>GitHub Token:</label>
             <input type="password" id="gh-token" style="width:100%; box-sizing: border-box;" placeholder="貼上 Personal Access Token">
         </div>
-
         <div id="form-container"></div>
-
         <button onclick="uploadData()">確認更新並上傳 GitHub</button>
         <p id="status"></p>
     </div>
 
     <script>
-        // 校正後的精確座標資料庫
+        // 直接使用您提供的 TWD97 座標 (X, Y)
         const stationConfigs = [
-            { name: "港務中泊渠", lat: 24.26123, lng: 120.52042 },
-            { name: "港務南突堤", lat: 24.23789, lng: 120.50368 },
-            { name: "港務工作船渠", lat: 24.29064, lng: 120.51873 },
-            { name: "台電清水", lat: 24.27041, lng: 120.57635 },
-            { name: "台電梧棲", lat: 24.25412, lng: 120.53024 },
-            { name: "台電龍井", lat: 24.20142, lng: 120.49844 },
-            { name: "沙鹿", lat: 24.22955, lng: 120.57034, isCentral: true }
+            { name: "港務中泊渠", x: 201305.6, y: 2683862 },
+            { name: "港務南突堤", x: 199602.4, y: 2681284 },
+            { name: "港務工作船渠", x: 201144.2, y: 2687122 },
+            { name: "台電清水", x: 206991.9, y: 2684871 },
+            { name: "台電梧棲", x: 202298.9, y: 2683072 },
+            { name: "台電龍井", x: 199067.2, y: 2677251 },
+            { name: "沙鹿", x: 206367.6, y: 2680337, isCentral: true }
         ];
 
         const container = document.getElementById('form-container');
         stationConfigs.forEach((st, idx) => {
             container.innerHTML += `
                 <div class="st-row">
-                    <b style="color:#007bff">${st.name}</b>
+                    <b style="color:#007bff">${st.name}</b> (X:${st.x}, Y:${st.y})
                     <div class="input-group">
                         <div>PM2.5: <input type="text" id="pm25-${idx}" value="15"></div>
                         <div>PM10: <input type="text" id="pm10-${idx}" value="35"></div>
@@ -67,14 +64,13 @@
         async function uploadData() {
             const token = document.getElementById('gh-token').value;
             if (!token) return alert("請輸入 Token");
-
             document.getElementById('status').innerText = "正在上傳...";
             const now = new Date().toLocaleString('zh-TW', { hour12: false });
             const payload = { tcc_data: [], central_data: [] };
 
             stationConfigs.forEach((st, idx) => {
                 const item = {
-                    station: st.name, lat: st.lat, lng: st.lng, time: now,
+                    station: st.name, x: st.x, y: st.y, time: now,
                     PM25: document.getElementById(`pm25-${idx}`).value,
                     PM10: document.getElementById(`pm10-${idx}`).value,
                     O3: document.getElementById(`o3-${idx}`).value,
@@ -93,32 +89,25 @@
             });
 
             const repo = "everterrachanghua-maker/Port-of-Taichung-air-quality-crawler";
-            const path = "air_quality.json";
-            const url = `https://api.github.com/repos/${repo}/contents/${path}`;
+            const url = `https://api.github.com/repos/${repo}/contents/air_quality.json`;
 
             try {
                 const getRes = await fetch(url, { headers: { 'Authorization': `token ${token}` } });
                 const fileData = await getRes.json();
-                
                 const putRes = await fetch(url, {
                     method: 'PUT',
                     headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        message: "手動更新座標與數據",
+                        message: "使用 TWD97 座標更新數據",
                         content: btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 4)))),
                         sha: fileData.sha
                     })
                 });
-
                 if (putRes.ok) {
-                    document.getElementById('status').innerText = "✅ 更新成功！位置已校正。";
+                    document.getElementById('status').innerText = "✅ 上傳成功！";
                     document.getElementById('status').style.color = "green";
-                } else {
-                    document.getElementById('status').innerText = "❌ 失敗，請檢查 Token。";
                 }
-            } catch (err) {
-                alert("錯誤: " + err);
-            }
+            } catch (err) { alert("錯誤: " + err); }
         }
     </script>
 </body>
