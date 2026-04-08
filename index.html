@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>台中港空氣品質衛星監控儀表板</title>
+    <title>台中港空氣品質監控儀表板</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.js"></script>
@@ -10,34 +10,34 @@
         body, html { margin: 0; padding: 0; height: 100%; background: #000; font-family: "Microsoft JhengHei", sans-serif; }
         #map { width: 100%; height: 100%; }
 
-        /* 標題樣式 */
         .map-title {
             position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; background: rgba(0, 0, 0, 0.85); color: #fff;
+            z-index: 1000; background: rgba(0, 0, 0, 0.8); color: #fff;
             padding: 10px 25px; border-radius: 30px; font-size: 1.2rem;
             border: 1px solid #ffeb3b; pointer-events: none; white-space: nowrap;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
 
-        .marker-container {
-            display: flex; align-items: center; justify-content: center;
-            position: relative; transform: translate(-50%, -50%);
+        /* 核心修正：自定義標記容器 */
+        .marker-wrapper {
+            position: relative;
+            width: 0; height: 0; /* 讓容器本身沒有體積，中心點即為座標點 */
         }
 
-        .station-name {
-            color: white; font-weight: bold; font-size: 15px;
-            text-shadow: 2px 2px 3px #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-            margin-right: 8px; white-space: nowrap;
-        }
-
+        /* 中間圓點：絕對置中對齊座標 */
         .marker-dot {
-            width: 14px; height: 14px; background-color: #ffeb3b;
-            border: 2px solid #fff; border-radius: 50%;
-            box-shadow: 0 0 10px rgba(255, 235, 59, 0.8); flex-shrink: 0;
+            position: absolute;
+            width: 16px; height: 16px;
+            left: -8px; top: -8px; /* 寬高的一半，確保圓心在 0,0 */
+            background-color: #ffeb3b;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(255, 235, 59, 0.8);
+            z-index: 10;
             transition: all 0.3s;
         }
 
-        /* 紅色閃爍預警樣式 */
+        /* 紅色閃爍預警 */
         @keyframes pulse-red {
             0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.9); }
             70% { transform: scale(1.4); box-shadow: 0 0 0 15px rgba(255, 0, 0, 0); }
@@ -49,9 +49,27 @@
             animation: pulse-red 1s infinite;
         }
 
+        /* 左側測站名稱：向左偏移 */
+        .station-name {
+            position: absolute;
+            right: 15px; /* 圓點半徑 + 間距 */
+            top: 0;
+            transform: translateY(-50%); /* 垂直居中 */
+            color: white; font-weight: bold; font-size: 15px;
+            text-shadow: 2px 2px 3px #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        /* 右側資訊表格：向右偏移 */
         .info-table-card {
-            margin-left: 10px; background: rgba(255, 255, 255, 0.95);
-            border: 1px solid #333; border-collapse: collapse;
+            position: absolute;
+            left: 15px; /* 圓點半徑 + 間距 */
+            top: 0;
+            transform: translateY(-50%); /* 垂直居中 */
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid #333;
+            border-collapse: collapse;
             box-shadow: 5px 5px 15px rgba(0,0,0,0.7);
         }
 
@@ -64,36 +82,25 @@
         .row-header td { background-color: #e9ecef; color: #333; font-size: 11px; }
 
         /* 背景顏色定義 */
-        .bg-normal { background-color: #99FF99 !important; } /* 低於等於標準：淺綠色 */
-        .bg-over   { background-color: #FFFF99 !important; } /* 高於標準：淺黃色 */
-        .label-red { background-color: #FF6666 !important; color: white !important; } /* 雙重門檻達成：標題變紅底 */
+        .bg-normal { background-color: #99FF99 !important; }
+        .bg-over   { background-color: #FFFF99 !important; }
+        .label-red { background-color: #FF6666 !important; color: white !important; }
     </style>
 </head>
 <body>
 
-    <div class="map-title">台中港空氣品質監控 - 預警自動化儀表板</div>
+    <div class="map-title">台中港空氣品質監控 - 視覺精準儀表板</div>
     <div id="map"></div>
 
     <script>
-        // 定義 TWD97 座標參數
         const twd97 = "+proj=tmerc +lat_0=0 +lon_0=121 +k=0.9999 +x_0=250000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
         const wgs84 = "EPSG:4326";
 
-        // 初始化地圖 (衛星圖層)
         const map = L.map('map', { zoomControl: false }).setView([24.25, 120.53], 12);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-        // 各測項基準值 (依照要求修正 O3 與 NO2 為 100)
-        const fixedThresholds = {
-            'O3': 100,
-            'PM25': 30,
-            'PM10': 75,
-            'CO': 31,
-            'SO2': 0.065,
-            'NO2': 100
-        };
+        const fixedThresholds = { 'O3': 100, 'PM25': 30, 'PM10': 75, 'CO': 31, 'SO2': 0.065, 'NO2': 100 };
 
-        // 判斷測值背景顏色的函式
         function getValBgClass(type, value) {
             const v = parseFloat(value);
             if (isNaN(v)) return "";
@@ -103,7 +110,6 @@
         fetch('air_quality.json?t=' + Date.now())
             .then(res => res.json())
             .then(data => {
-                // 鎖定沙鹿站數據作為基準
                 const shalu = (data.central_data || []).find(s => s.station === "沙鹿") || {};
                 const allStations = [...(data.tcc_data || []), ...(data.central_data || [])];
 
@@ -118,28 +124,19 @@
                         const cur = parseFloat(st[key]);
                         const sha = parseFloat(shalu[key]);
                         const std = fixedThresholds[key];
-
-                        if (!isNaN(cur)) {
-                            // 預警判定邏輯：
-                            // 1. 測值 > 圖中設定標準
-                            // 2. 且 測值 > 沙鹿站測值 1.5 倍
-                            const isHigherThanStd = cur > std;
-                            const isHigherThanShalu15 = (!isNaN(sha) && sha > 0) ? (cur > sha * 1.5) : false;
-
-                            if (isHigherThanStd && isHigherThanShalu15) {
-                                headerClasses[key] = "label-red";
-                                triggerRedDot = true;
-                            }
+                        if (!isNaN(cur) && cur > std && (!isNaN(sha) && cur > sha * 1.5)) {
+                            headerClasses[key] = "label-red";
+                            triggerRedDot = true;
                         }
                     });
 
-                    // 座標轉換 (TWD97 -> WGS84)
                     const pos = proj4(twd97, wgs84, [parseFloat(st.x), parseFloat(st.y)]);
                     
+                    // 建立精確對位圖標
                     const icon = L.divIcon({
                         className: 'custom-div-icon',
                         html: `
-                            <div class="marker-container">
+                            <div class="marker-wrapper">
                                 <div class="station-name">${st.station}</div>
                                 <div class="marker-dot ${triggerRedDot ? 'dot-danger' : ''}"></div>
                                 <table class="info-table-card">
@@ -153,7 +150,7 @@
                                         <td class="${headerClasses['NO2'] || ''}">NO₂</td>
                                     </tr>
                                     <tr class="row-value">
-                                        <td style="font-weight:normal; font-size:10px; background:#fff">測值</td>
+                                        <td style="font-weight:normal; font-size:10px; background:#fff">值</td>
                                         <td class="${getValBgClass('O3', st.O3)}">${st.O3 || '-'}</td>
                                         <td class="${getValBgClass('PM25', st.PM25)}">${st.PM25 || '-'}</td>
                                         <td class="${getValBgClass('PM10', st.PM10)}">${st.PM10 || '-'}</td>
@@ -164,12 +161,15 @@
                                 </table>
                             </div>
                         `,
-                        iconSize: [0, 0]
+                        iconSize: [0, 0],
+                        iconAnchor: [0, 0] // 配合 CSS 讓圓點中心成為絕對 0,0
                     });
 
                     L.marker([pos[1], pos[0]], { icon: icon }).addTo(map);
                 });
             });
     </script>
+</body>
+</html>
 </body>
 </html>
