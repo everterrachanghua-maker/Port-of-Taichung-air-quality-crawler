@@ -1,9 +1,9 @@
 import os
 import json
 import requests
-import time
+from datetime import datetime, timedelta
 
-# 1. 讀取環境變數 (現在只需要 Token，不需要 UID 了)
+# 1. 讀取環境變數
 LINE_TOKEN = os.environ.get('LINE_ACCESS_TOKEN')
 
 # 2. 定義預警標準
@@ -15,22 +15,18 @@ def send_line_broadcast(msg):
     if not LINE_TOKEN:
         print("未設定 LINE Token，跳過發送")
         return
-    
-    # --- 關鍵修正：改用 broadcast 接口 ---
     url = "https://api.line.me/v2/bot/message/broadcast"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {LINE_TOKEN}"
     }
-    # broadcast 不需要 "to" 參數，會發給所有好友
     payload = {
         "messages": [{"type": "text", "text": msg}]
     }
-    
     try:
         res = requests.post(url, headers=headers, json=payload)
         if res.status_code == 200:
-            print("✅ 群發訊息成功，所有好友應皆已收到")
+            print("✅ 群發訊息成功")
         else:
             print(f"❌ 群發失敗: {res.text}")
     except Exception as e:
@@ -67,7 +63,11 @@ def main():
             alert_msg += f"\n📍【{station_name}】異常！\n" + "\n".join(st_alerts) + "\n"
 
     if alert_msg:
-        full_msg = f"🚨 台中港港務測站預警 🚨\n{alert_msg}\n通知時間: {time.strftime('%Y/%m/%d %H:%M')}"
+        # --- 關鍵修正：將 UTC 時間加上 8 小時轉為台灣時間 ---
+        tw_time = datetime.utcnow() + timedelta(hours=8)
+        time_str = tw_time.strftime('%Y/%m/%d %H:%M')
+        
+        full_msg = f"🚨 台中港港務測站預警 🚨\n{alert_msg}\n通知時間: {time_str}"
         send_line_broadcast(full_msg)
     else:
         print("數據正常，未觸發預警")
