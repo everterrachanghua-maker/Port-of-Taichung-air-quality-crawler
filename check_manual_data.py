@@ -7,7 +7,7 @@ import time
 LINE_TOKEN = os.environ.get('LINE_ACCESS_TOKEN')
 LINE_UID = os.environ.get('LINE_USER_ID')
 
-# 2. 定義預警標準
+# 2. 定義預警標準 (依據您的圖片)
 THRESHOLDS = {
     'O3': 100, 'PM25': 30, 'PM10': 75, 'CO': 31, 'SO2': 0.065, 'NO2': 100
 }
@@ -19,10 +19,17 @@ def send_line(msg):
     url = "https://api.line.me/v2/bot/message/push"
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {LINE_TOKEN}"}
     payload = {"to": LINE_UID, "messages": [{"type": "text", "text": msg}]}
-    requests.post(url, headers=headers, json=payload)
+    try:
+        res = requests.post(url, headers=headers, json=payload)
+        if res.status_code == 200:
+            print("LINE 訊息發送成功")
+        else:
+            print(f"LINE 發送失敗: {res.text}")
+    except Exception as e:
+        print(f"網路錯誤: {e}")
 
 def main():
-    # 讀取剛剛上傳更新的數據檔案
+    # 讀取數據檔案
     try:
         with open("air_quality.json", "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -37,8 +44,15 @@ def main():
         return
 
     alert_msg = ""
-    # 遍歷港務所有測站
+    # 遍歷所有測站
     for st in data["tcc_data"]:
+        station_name = st["station"]
+
+        # --- 關鍵修正：排除台電測站 ---
+        if "台電" in station_name:
+            print(f"跳過不檢查: {station_name}")
+            continue
+        
         st_alerts = []
         for key, limit in THRESHOLDS.items():
             try:
@@ -46,22 +60,22 @@ def main():
                 val = float(st[key])
                 shalu_val = float(shalu[key])
                 
-                # 雙重門檻判定：大於標準值 且 大於沙鹿站 1.5 倍
+                # 預警判定：1. 大於圖片標準 且 2. 大於沙鹿 1.5 倍
                 if val > limit and val > (shalu_val * 1.5):
                     st_alerts.append(f"● {key}: {val} (標準:{limit}, 沙鹿:{shalu_val})")
             except:
                 continue
         
         if st_alerts:
-            alert_msg += f"\n📍【{st['station']}】異常！\n" + "\n".join(st_alerts) + "\n"
+            alert_msg += f"\n📍【{station_name}】異常！\n" + "\n".join(st_alerts) + "\n"
 
     # 如果有異常，則發送 LINE
     if alert_msg:
-        full_msg = f"🚨 台中港空氣品質預警 🚨\n{alert_msg}\n通知時間: {time.strftime('%H:%M')}"
+        full_msg = f"🚨 台中港港務測站預警 🚨\n{alert_msg}\n通知時間: {time.strftime('%Y/%m/%d %H:%M')}"
         send_line(full_msg)
-        print("已發送預警通知")
+        print("已發送港務預警通知")
     else:
-        print("數據正常，未觸發預警")
+        print("港務測站數據皆正常或未達警示門檻")
 
 if __name__ == "__main__":
     main()
