@@ -2,94 +2,97 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>台中港空氣品質監控儀表板</title>
+    <title>台中港空氣品質監控地圖</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; background: #000; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        body, html { margin: 0; padding: 0; height: 100%; background: #000; font-family: "Microsoft JhengHei", sans-serif; }
         #map { width: 100%; height: 100%; }
 
         /* 地圖上方標題 */
         .map-title {
-            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; background: rgba(10, 20, 30, 0.85); color: #00f2ff;
-            padding: 12px 30px; border-radius: 4px; font-size: 1.4rem; font-weight: bold;
-            border-left: 5px solid #00f2ff; letter-spacing: 2px; backdrop-filter: blur(5px);
-            box-shadow: 0 0 20px rgba(0, 242, 255, 0.2); pointer-events: none;
+            position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; background: rgba(0, 0, 0, 0.7); color: #fff;
+            padding: 10px 25px; border-radius: 30px; font-size: 1.2rem;
+            border: 1px solid #ffeb3b; pointer-events: none; white-space: nowrap;
         }
 
-        /* 自定義標記容器 */
-        .custom-marker {
-            display: flex; align-items: center; white-space: nowrap;
+        /* 自定義標記容器：[名稱] [點] [表格] */
+        .marker-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transform: translate(-50%, -50%); /* 確保圓點中心對準座標 */
         }
 
-        /* 黃色定位點 */
+        /* 左側測站名稱 */
+        .station-name {
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,1), -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+            margin-right: 8px;
+            white-space: nowrap;
+        }
+
+        /* 中間黃色定位點 */
         .marker-dot {
-            width: 12px; height: 12px; background-color: #ffeb3b;
-            border: 2px solid #fff; border-radius: 50%;
-            box-shadow: 0 0 10px #ffeb3b, 0 0 20px #ffeb3b;
-            z-index: 2; flex-shrink: 0;
+            width: 14px;
+            height: 14px;
+            background-color: #ffeb3b;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(255, 235, 59, 0.8);
+            flex-shrink: 0;
         }
 
-        /* 資訊卡片主體 */
-        .info-card {
-            display: flex; flex-direction: column; margin-left: 10px;
-            background: rgba(15, 25, 35, 0.9); border: 1px solid rgba(0, 242, 255, 0.3);
-            border-radius: 4px; color: #fff; overflow: hidden; backdrop-filter: blur(4px);
-            box-shadow: 5px 5px 15px rgba(0,0,0,0.5);
+        /* 右側資訊表格卡片 */
+        .info-table-card {
+            margin-left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #333;
+            box-shadow: 4px 4px 10px rgba(0,0,0,0.5);
+            border-collapse: collapse;
         }
 
-        /* 測站名稱標籤 */
-        .station-label {
-            background: rgba(0, 242, 255, 0.2); padding: 2px 8px;
-            font-size: 12px; font-weight: bold; color: #00f2ff;
-            border-bottom: 1px solid rgba(0, 242, 255, 0.3);
+        .info-table-card td {
+            border: 1px solid #555;
+            padding: 3px 8px;
+            text-align: center;
+            font-size: 12px;
+            color: #000;
+            white-space: nowrap;
         }
 
-        /* 兩排多欄表格樣式 */
-        .data-grid {
-            display: grid; grid-template-rows: repeat(2, auto);
-            grid-auto-flow: column; text-align: center; font-size: 11px;
+        /* 表格首列樣式 (測項) */
+        .row-header {
+            background-color: #f0f0f0;
+            font-weight: bold;
         }
 
-        .grid-item {
-            padding: 4px 8px; border-right: 1px solid rgba(255,255,255,0.1);
+        /* 表格第二列樣式 (測值) */
+        .row-value {
+            background-color: #fff;
+            font-weight: bold;
+            font-size: 14px;
         }
-        .grid-item:last-child { border-right: none; }
-
-        /* 上排測項名稱 */
-        .grid-head { color: #aaa; background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1); }
-        /* 下排測值 */
-        .grid-val { color: #fff; font-size: 13px; font-weight: bold; }
-        
-        /* 數值顏色提醒 */
-        .val-high { color: #ff5252; } /* 超標紅 */
-        .val-mid { color: #ffd740; }  /* 警告黃 */
     </style>
 </head>
 <body>
 
-    <div class="map-title">TAICHUNG PORT AIR QUALITY MONITORING</div>
+    <div class="map-title">台中港空氣品質即時監測儀表板</div>
     <div id="map"></div>
 
     <script>
-        // 定義座標轉換 (TWD97 到 WGS84)
-        proj4.defs("EPSG:3826", "+proj=tmerc +lat_0=0 +lon_0=121 +k=0.9999 +x_0=250000 +y_0=0 +ellps=GRS80 +units=m +no_defs");
+        // 定義 TWD97 座標參數
+        const twd97 = "+proj=tmerc +lat_0=0 +lon_0=121 +k=0.9999 +x_0=250000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
+        const wgs84 = "EPSG:4326";
 
-        // 初始化地圖 (衛星圖)
-        const map = L.map('map', { zoomControl: false }).setView([24.25, 120.54], 12);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Esri Satellite'
-        }).addTo(map);
-
-        // 數值顏色判斷
-        function getValClass(type, val) {
-            let v = parseFloat(val);
-            if (type === 'PM25' && v > 35) return 'val-high';
-            if (type === 'PM25' && v > 15) return 'val-mid';
-            return '';
-        }
+        // 初始化地圖
+        const map = L.map('map', { zoomControl: false }).setView([24.25, 120.53], 12);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
         fetch('air_quality.json?t=' + Date.now())
             .then(res => res.json())
@@ -100,45 +103,32 @@
                     if (!st.x || !st.y) return;
 
                     // 座標轉換
-                    const pos = proj4("EPSG:3826", "EPSG:4326", [parseFloat(st.x), parseFloat(st.y)]);
+                    const pos = proj4(twd97, wgs84, [parseFloat(st.x), parseFloat(st.y)]);
                     
-                    // 建立自定義 HTML 圖標
                     const icon = L.divIcon({
                         className: 'custom-div-icon',
                         html: `
-                            <div class="custom-marker">
+                            <div class="marker-container">
+                                <div class="station-name">${st.station}</div>
                                 <div class="marker-dot"></div>
-                                <div class="info-card">
-                                    <div class="station-label">${st.station} <span style="font-weight:normal; opacity:0.6; font-size:10px; float:right;">${st.time.split(' ')[1]}</span></div>
-                                    <div class="data-grid">
-                                        <div class="grid-item grid-head">O₃</div>
-                                        <div class="grid-item grid-val">${st.O3 || '-'}</div>
-                                        
-                                        <div class="grid-item grid-head">PM2.5</div>
-                                        <div class="grid-item grid-val ${getValClass('PM25', st.PM25)}">${st.PM25 || '-'}</div>
-                                        
-                                        <div class="grid-item grid-head">PM10</div>
-                                        <div class="grid-item grid-val">${st.PM10 || '-'}</div>
-                                        
-                                        <div class="grid-item grid-head">CO</div>
-                                        <div class="grid-item grid-val">${st.CO || '-'}</div>
-                                        
-                                        <div class="grid-item grid-head">SO₂</div>
-                                        <div class="grid-item grid-val">${st.SO2 || '-'}</div>
-                                        
-                                        <div class="grid-item grid-head">NO₂</div>
-                                        <div class="grid-item grid-val">${st.NO2 || '-'}</div>
-                                        
-                                        ${st.WindSpeed ? `
-                                            <div class="grid-item grid-head">風速</div>
-                                            <div class="grid-item grid-val" style="color:#00f2ff">${st.WindSpeed}</div>
-                                        ` : ''}
-                                    </div>
-                                </div>
+                                <table class="info-table-card">
+                                    <tr class="row-header">
+                                        <td>測項</td><td>O₃</td><td>PM₂.₅</td><td>PM₁₀</td><td>CO</td><td>SO₂</td><td>NO₂</td>
+                                    </tr>
+                                    <tr class="row-value">
+                                        <td style="font-weight:normal; font-size:10px">值</td>
+                                        <td>${st.O3 || '-'}</td>
+                                        <td>${st.PM25 || '-'}</td>
+                                        <td>${st.PM10 || '-'}</td>
+                                        <td>${st.CO || '-'}</td>
+                                        <td>${st.SO2 || '-'}</td>
+                                        <td>${st.NO2 || '-'}</td>
+                                    </tr>
+                                </table>
                             </div>
                         `,
-                        iconSize: [0, 0], // 大小由 HTML 決定
-                        iconAnchor: [6, 25] // 將圓點對準座標中心
+                        iconSize: [0, 0],
+                        iconAnchor: [0, 0] 
                     });
 
                     L.marker([pos[1], pos[0]], { icon: icon }).addTo(map);
