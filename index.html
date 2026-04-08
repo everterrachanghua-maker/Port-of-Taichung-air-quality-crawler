@@ -14,28 +14,22 @@
             position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
             z-index: 1000; background: rgba(0, 0, 0, 0.8); color: #fff;
             padding: 10px 25px; border-radius: 30px; font-size: 1.2rem;
-            border: 1px solid #ffeb3b; pointer-events: none; white-space: nowrap;
+            border: 1px solid #fff; pointer-events: none; white-space: nowrap;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
 
-        /* 核心修正：自定義標記容器 */
-        .marker-wrapper {
-            position: relative;
-            width: 0; height: 0; /* 讓容器本身沒有體積，中心點即為座標點 */
+        .marker-wrapper { position: relative; width: 0; height: 0; }
+
+        /* 定位點基礎樣式 */
+        .marker-dot {
+            position: absolute; width: 16px; height: 16px;
+            left: -8px; top: -8px; border: 2px solid #fff;
+            border-radius: 50%; z-index: 10; transition: all 0.3s;
         }
 
-        /* 中間圓點：絕對置中對齊座標 */
-        .marker-dot {
-            position: absolute;
-            width: 16px; height: 16px;
-            left: -8px; top: -8px; /* 寬高的一半，確保圓心在 0,0 */
-            background-color: #ffeb3b;
-            border: 2px solid #fff;
-            border-radius: 50%;
-            box-shadow: 0 0 10px rgba(255, 235, 59, 0.8);
-            z-index: 10;
-            transition: all 0.3s;
-        }
+        /* 顏色邏輯：全正常綠、任一超標黃 */
+        .dot-safe { background-color: #00FF00; box-shadow: 0 0 10px #00FF00; }
+        .dot-warning { background-color: #FFFF00; box-shadow: 0 0 10px #FFFF00; }
 
         /* 紅色閃爍預警 */
         @keyframes pulse-red {
@@ -49,28 +43,17 @@
             animation: pulse-red 1s infinite;
         }
 
-        /* 左側測站名稱：向左偏移 */
         .station-name {
-            position: absolute;
-            right: 15px; /* 圓點半徑 + 間距 */
-            top: 0;
-            transform: translateY(-50%); /* 垂直居中 */
+            position: absolute; right: 15px; top: 0; transform: translateY(-50%);
             color: white; font-weight: bold; font-size: 15px;
             text-shadow: 2px 2px 3px #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-            white-space: nowrap;
-            pointer-events: none;
+            white-space: nowrap; pointer-events: none;
         }
 
-        /* 右側資訊表格：向右偏移 */
         .info-table-card {
-            position: absolute;
-            left: 15px; /* 圓點半徑 + 間距 */
-            top: 0;
-            transform: translateY(-50%); /* 垂直居中 */
-            background: rgba(255, 255, 255, 0.95);
-            border: 1px solid #333;
-            border-collapse: collapse;
-            box-shadow: 5px 5px 15px rgba(0,0,0,0.7);
+            position: absolute; left: 15px; top: 0; transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.95); border: 1px solid #333;
+            border-collapse: collapse; box-shadow: 5px 5px 15px rgba(0,0,0,0.7);
         }
 
         .info-table-card td {
@@ -81,7 +64,7 @@
 
         .row-header td { background-color: #e9ecef; color: #333; font-size: 11px; }
 
-        /* 背景顏色定義 */
+        /* 表格背景顏色 */
         .bg-normal { background-color: #99FF99 !important; }
         .bg-over   { background-color: #FFFF99 !important; }
         .label-red { background-color: #FF6666 !important; color: white !important; }
@@ -89,7 +72,7 @@
 </head>
 <body>
 
-    <div class="map-title">台中港空氣品質監控 - 視覺精準儀表板</div>
+    <div class="map-title">台中港空氣品質監控 - 視覺優化儀表板</div>
     <div id="map"></div>
 
     <script>
@@ -118,27 +101,41 @@
 
                     const checkItems = ['O3', 'PM25', 'PM10', 'CO', 'SO2', 'NO2'];
                     const headerClasses = {}; 
-                    let triggerRedDot = false;
+                    let triggerRedDot = false; // 雙重超標紅燈
+                    let anyOverThreshold = false; // 任何一項大於標準
 
                     checkItems.forEach(key => {
                         const cur = parseFloat(st[key]);
                         const sha = parseFloat(shalu[key]);
                         const std = fixedThresholds[key];
-                        if (!isNaN(cur) && cur > std && (!isNaN(sha) && cur > sha * 1.5)) {
-                            headerClasses[key] = "label-red";
-                            triggerRedDot = true;
+
+                        if (!isNaN(cur)) {
+                            if (cur > std) {
+                                anyOverThreshold = true;
+                                // 判斷是否滿足沙鹿比較紅燈條件
+                                if (!isNaN(sha) && sha > 0 && cur > sha * 1.5) {
+                                    headerClasses[key] = "label-red";
+                                    triggerRedDot = true;
+                                }
+                            }
                         }
                     });
 
+                    // 決定點位顏色類別
+                    let dotClass = "dot-safe"; // 預設綠色
+                    if (triggerRedDot) {
+                        dotClass = "dot-danger"; // 優先閃爍紅
+                    } else if (anyOverThreshold) {
+                        dotClass = "dot-warning"; // 其次黃色
+                    }
+
                     const pos = proj4(twd97, wgs84, [parseFloat(st.x), parseFloat(st.y)]);
-                    
-                    // 建立精確對位圖標
                     const icon = L.divIcon({
                         className: 'custom-div-icon',
                         html: `
                             <div class="marker-wrapper">
                                 <div class="station-name">${st.station}</div>
-                                <div class="marker-dot ${triggerRedDot ? 'dot-danger' : ''}"></div>
+                                <div class="marker-dot ${dotClass}"></div>
                                 <table class="info-table-card">
                                     <tr class="row-header">
                                         <td style="background:#eee">測項</td>
@@ -162,14 +159,12 @@
                             </div>
                         `,
                         iconSize: [0, 0],
-                        iconAnchor: [0, 0] // 配合 CSS 讓圓點中心成為絕對 0,0
+                        iconAnchor: [0, 0]
                     });
 
                     L.marker([pos[1], pos[0]], { icon: icon }).addTo(map);
                 });
             });
     </script>
-</body>
-</html>
 </body>
 </html>
