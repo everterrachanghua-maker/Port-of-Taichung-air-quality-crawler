@@ -2,55 +2,54 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>台中港空氣品質監控地圖</title>
+    <title>台中港空氣品質衛星監控</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- 引入專業的座標轉換庫 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; background: #000; }
+        body, html { margin: 0; padding: 0; height: 100%; }
         #map { width: 100%; height: 100%; }
         .map-title {
             position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; background: rgba(0,0,0,0.8); color: #00ff00;
-            padding: 10px 20px; border-radius: 5px; border: 1px solid #00ff00;
-            font-size: 1.2rem; font-weight: bold; pointer-events: none;
+            z-index: 1000; background: rgba(0,0,0,0.8); color: white;
+            padding: 10px 25px; border-radius: 30px; font-size: 1.1rem; border: 1px solid #4CAF50;
         }
-        .admin-link {
-            position: absolute; top: 15px; right: 15px; z-index: 1000;
-            background: #444; color: white; padding: 8px 15px; border-radius: 4px;
-            text-decoration: none; font-size: 0.8rem; opacity: 0.6;
-        }
-        .admin-link:hover { opacity: 1; }
     </style>
 </head>
 <body>
-    <div class="map-title">台中港區空氣品質即時監控 (衛星視圖)</div>
-    <a href="admin.html" class="admin-link">進入數據管理</a>
+    <div class="map-title">台中港空氣品質監控 (TWD97 座標自動對位)</div>
     <div id="map"></div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        const map = L.map('map').setView([24.24, 120.52], 13);
+        // 定義 TWD97 / TM2 中央經線 121度 的投影參數
+        proj4.defs("EPSG:3826", "+proj=tmerc +lat_0=0 +lon_0=121 +k=0.9999 +x_0=250000 +y_0=0 +ellps=GRS80 +units=m +no_defs");
+
+        const map = L.map('map').setView([24.25, 120.53], 12);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
         function getColor(pm25) {
             const v = parseFloat(pm25);
-            return v <= 15 ? "#00ff00" : v <= 35 ? "#ffff00" : "#ff0000";
+            return v <= 15 ? "green" : v <= 35 ? "orange" : "red";
         }
 
         fetch('air_quality.json?t=' + Date.now())
             .then(res => res.json())
             .then(data => {
                 const allData = [...data.tcc_data, ...data.central_data];
+                
                 allData.forEach(st => {
-                    const marker = L.circleMarker([st.lat, st.lng], {
+                    // 將 TWD97 (x, y) 轉換為經緯度 (lng, lat)
+                    const converted = proj4("EPSG:3826", "EPSG:4326", [st.x, st.y]);
+                    const lat = converted[1];
+                    const lng = converted[0];
+
+                    const marker = L.circleMarker([lat, lng], {
                         radius: 12, fillColor: getColor(st.PM25), color: "#fff",
                         weight: 2, opacity: 1, fillOpacity: 0.8
                     }).addTo(map);
 
-                    let popupContent = `<b>${st.station}</b><br><small>${st.time}</small><hr>`;
-                    popupContent += `PM2.5: <b>${st.PM25}</b><br>PM10: ${st.PM10}<br>O3: ${st.O3}`;
-                    if(st.RH) popupContent += `<br>濕度: ${st.RH}%<br>風速: ${st.WindSpeed}`;
-                    
-                    marker.bindPopup(popupContent);
+                    marker.bindPopup(`<b>${st.station}</b><br>時間: ${st.time}<hr>PM2.5: ${st.PM25}<br>PM10: ${st.PM10}`);
                 });
             });
     </script>
