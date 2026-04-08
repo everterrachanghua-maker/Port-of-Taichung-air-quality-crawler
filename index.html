@@ -37,7 +37,7 @@
             transition: all 0.3s;
         }
 
-        /* 紅色閃爍預警 */
+        /* 紅色閃爍預警樣式 */
         @keyframes pulse-red {
             0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.9); }
             70% { transform: scale(1.4); box-shadow: 0 0 0 15px rgba(255, 0, 0, 0); }
@@ -63,35 +63,37 @@
 
         .row-header td { background-color: #e9ecef; color: #333; font-size: 11px; }
 
-        /* 符合條件要求的顏色 */
-        .bg-normal { background-color: #99FF99 !important; } /* 低於標準：綠色 */
-        .bg-over   { background-color: #FFFF99 !important; } /* 高於標準：黃色 */
-        .label-red { background-color: #FF6666 !important; color: white !important; } /* 雙重超標：標題變紅 */
+        /* 背景顏色定義 */
+        .bg-normal { background-color: #99FF99 !important; } /* 低於等於標準：淺綠色 */
+        .bg-over   { background-color: #FFFF99 !important; } /* 高於標準：淺黃色 */
+        .label-red { background-color: #FF6666 !important; color: white !important; } /* 雙重門檻達成：標題變紅底 */
     </style>
 </head>
 <body>
 
-    <div class="map-title">台中港空氣品質監控 - 雙重預警儀表板</div>
+    <div class="map-title">台中港空氣品質監控 - 預警自動化儀表板</div>
     <div id="map"></div>
 
     <script>
+        // 定義 TWD97 座標參數
         const twd97 = "+proj=tmerc +lat_0=0 +lon_0=121 +k=0.9999 +x_0=250000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
         const wgs84 = "EPSG:4326";
 
+        // 初始化地圖 (衛星圖層)
         const map = L.map('map', { zoomControl: false }).setView([24.25, 120.53], 12);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-        // 您提供圖片中的標準值
+        // 各測項基準值 (依照要求修正 O3 與 NO2 為 100)
         const fixedThresholds = {
-            'O3': 0.100,
+            'O3': 100,
             'PM25': 30,
             'PM10': 75,
             'CO': 31,
             'SO2': 0.065,
-            'NO2': 0.100
+            'NO2': 100
         };
 
-        // 判斷測值背景顏色的邏輯
+        // 判斷測值背景顏色的函式
         function getValBgClass(type, value) {
             const v = parseFloat(value);
             if (isNaN(v)) return "";
@@ -101,6 +103,7 @@
         fetch('air_quality.json?t=' + Date.now())
             .then(res => res.json())
             .then(data => {
+                // 鎖定沙鹿站數據作為基準
                 const shalu = (data.central_data || []).find(s => s.station === "沙鹿") || {};
                 const allStations = [...(data.tcc_data || []), ...(data.central_data || [])];
 
@@ -117,7 +120,9 @@
                         const std = fixedThresholds[key];
 
                         if (!isNaN(cur)) {
-                            // 雙重條件判定：大於標準 且 大於沙鹿 1.5 倍
+                            // 預警判定邏輯：
+                            // 1. 測值 > 圖中設定標準
+                            // 2. 且 測值 > 沙鹿站測值 1.5 倍
                             const isHigherThanStd = cur > std;
                             const isHigherThanShalu15 = (!isNaN(sha) && sha > 0) ? (cur > sha * 1.5) : false;
 
@@ -128,6 +133,7 @@
                         }
                     });
 
+                    // 座標轉換 (TWD97 -> WGS84)
                     const pos = proj4(twd97, wgs84, [parseFloat(st.x), parseFloat(st.y)]);
                     
                     const icon = L.divIcon({
@@ -147,7 +153,7 @@
                                         <td class="${headerClasses['NO2'] || ''}">NO₂</td>
                                     </tr>
                                     <tr class="row-value">
-                                        <td style="font-weight:normal; font-size:10px; background:#fff">值</td>
+                                        <td style="font-weight:normal; font-size:10px; background:#fff">測值</td>
                                         <td class="${getValBgClass('O3', st.O3)}">${st.O3 || '-'}</td>
                                         <td class="${getValBgClass('PM25', st.PM25)}">${st.PM25 || '-'}</td>
                                         <td class="${getValBgClass('PM10', st.PM10)}">${st.PM10 || '-'}</td>
