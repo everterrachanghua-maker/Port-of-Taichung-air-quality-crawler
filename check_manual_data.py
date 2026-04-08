@@ -8,7 +8,7 @@ LINE_TOKEN = os.environ.get('LINE_ACCESS_TOKEN')
 
 # 2. 定義預警標準
 THRESHOLDS = {
-    'O3': 100, 'PM25': 30, 'PM10': 75, 'CO': 31, 'SO2': 0.065, 'NO2': 100
+    'O3': 100, 'PM25': 30, 'PM10': 75, 'CO': 31, 'SO2': 65, 'NO2': 100
 }
 
 def send_line_broadcast(msg):
