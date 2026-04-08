@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>數據管理後台</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f4f4f4; }
+        .box { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .st-row { border-bottom: 1px solid #eee; padding: 10px 0; }
+        label { display: inline-block; width: 100px; font-weight: bold; }
+        input { width: 60px; margin-right: 10px; }
+        button { width: 100%; padding: 15px; background: #28a745; color: white; border: none; border-radius: 5px; font-size: 1.1rem; cursor: pointer; }
+        .token-box { background: #fff3cd; padding: 10px; margin-bottom: 20px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2>手動更新監測數據</h2>
+        
+        <div class="token-box">
+            <label style="width:100%">GitHub Token (第一次使用請輸入):</label>
+            <input type="password" id="gh-token" style="width:95%" placeholder="貼上你的 GitHub Token">
+        </div>
+
+        <div id="form-container">
+            <!-- 這裡會由 JS 動態生成各測站輸入框 -->
+        </div>
+
+        <button onclick="uploadData()">確認更新並上傳 GitHub</button>
+        <p id="status"></p>
+    </div>
+
+    <script>
+        const stations = [
+            { name: "台電梧棲", lat: 24.256, lng: 120.522 },
+            { name: "港務工作船渠", lat: 24.267, lng: 120.518 },
+            { name: "港務南突堤", lat: 24.241, lng: 120.505 },
+            { name: "港務中泊渠", lat: 24.258, lng: 120.512 },
+            { name: "台電清水", lat: 24.275, lng: 120.542 },
+            { name: "台電龍井", lat: 24.212, lng: 120.488 },
+            { name: "沙鹿", lat: 24.239, lng: 120.568, isCentral: true }
+        ];
+
+        const container = document.getElementById('form-container');
+        stations.forEach((st, idx) => {
+            container.innerHTML += `
+                <div class="st-row">
+                    <b>${st.name}</b><br>
+                    PM2.5: <input type="text" id="pm25-${idx}" value="10">
+                    O3: <input type="text" id="o3-${idx}" value="20">
+                    PM10: <input type="text" id="pm10-${idx}" value="30">
+                </div>
+            `;
+        });
+
+        async function uploadData() {
+            const token = document.getElementById('gh-token').value;
+            if (!token) return alert("請輸入 Token");
+
+            document.getElementById('status').innerText = "上傳中...";
+
+            // 1. 組裝 JSON 資料
+            const now = new Date().toLocaleString();
+            const payload = { tcc_data: [], central_data: [] };
+
+            stations.forEach((st, idx) => {
+                const item = {
+                    station: st.name, lat: st.lat, lng: st.lng, time: now,
+                    PM25: document.getElementById(`pm25-${idx}`).value,
+                    O3: document.getElementById(`o3-${idx}`).value,
+                    PM10: document.getElementById(`pm10-${idx}`).value
+                };
+                if (st.isCentral) {
+                    item.RH = "75"; item.WindSpeed = "1.2"; item.NMHC = "0.2";
+                    payload.central_data.push(item);
+                } else {
+                    payload.tcc_data.push(item);
+                }
+            });
+
+            // 2. 透過 API 更新 GitHub (需要先抓 SHA)
+            const repo = "everterrachanghua-maker/Port-of-Taichung-air-quality-crawler";
+            const path = "air_quality.json";
+            const url = `https://api.github.com/repos/${repo}/contents/${path}`;
+
+            try {
+                const getRes = await fetch(url);
+                const fileData = await getRes.json();
+                const sha = fileData.sha;
+
+                const putRes = await fetch(url, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: "手動更新數據",
+                        content: btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 4)))),
+                        sha: sha
+                    })
+                });
+
+                if (putRes.ok) {
+                    document.getElementById('status').innerText = "✅ 更新成功！1分鐘後網頁會同步。";
+                } else {
+                    document.getElementById('status').innerText = "❌ 上傳失敗，請檢查 Token 權限。";
+                }
+            } catch (err) {
+                alert("錯誤: " + err);
+            }
+        }
+    </script>
+</body>
+</html>
