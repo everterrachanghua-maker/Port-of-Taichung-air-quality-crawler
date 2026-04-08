@@ -99,7 +99,7 @@
         const map = L.map('map', { zoomControl: false }).setView([24.25, 120.53], 12);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-        const fixedThresholds = { 'O3': 100, 'PM25': 30, 'PM10': 75, 'CO': 31, 'SO2': 0.065, 'NO2': 100 };
+        const fixedThresholds = { 'O3': 100, 'PM25': 30, 'PM10': 75, 'CO': 31, 'SO2': 65, 'NO2': 100 };
 
         function getValBgClass(type, value) {
             const v = parseFloat(value);
