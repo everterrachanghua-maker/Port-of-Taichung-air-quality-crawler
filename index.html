@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>台中港空氣品質監控儀表板</title>
+    <title>台中港空氣品質衛星監控儀表板</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.js"></script>
@@ -19,20 +19,17 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
 
-        /* 標記容器佈局 */
         .marker-container {
             display: flex; align-items: center; justify-content: center;
             position: relative; transform: translate(-50%, -50%);
         }
 
-        /* 測站名稱樣式 */
         .station-name {
             color: white; font-weight: bold; font-size: 15px;
             text-shadow: 2px 2px 3px #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
             margin-right: 8px; white-space: nowrap;
         }
 
-        /* 圓點定位點 */
         .marker-dot {
             width: 14px; height: 14px; background-color: #ffeb3b;
             border: 2px solid #fff; border-radius: 50%;
@@ -40,7 +37,7 @@
             transition: all 0.3s;
         }
 
-        /* 紅色閃爍預警樣式 */
+        /* 紅色閃爍預警 */
         @keyframes pulse-red {
             0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.9); }
             70% { transform: scale(1.4); box-shadow: 0 0 0 15px rgba(255, 0, 0, 0); }
@@ -52,7 +49,6 @@
             animation: pulse-red 1s infinite;
         }
 
-        /* 資訊表格樣式 */
         .info-table-card {
             margin-left: 10px; background: rgba(255, 255, 255, 0.95);
             border: 1px solid #333; border-collapse: collapse;
@@ -65,23 +61,17 @@
             white-space: nowrap; font-weight: bold;
         }
 
-        /* 表格標題行預設樣式 */
         .row-header td { background-color: #e9ecef; color: #333; font-size: 11px; }
 
-        /* 重要：高於沙鹿 1.5 倍時，測項文字轉為淺紅底 */
-        .label-danger { background-color: #FF9999 !important; color: #b71c1c !important; }
-
-        /* AQI 顏色標準類別 (測值背景) */
-        .aqi-good { background-color: #99FF99 !important; }   /* 良好 - 淺綠 */
-        .aqi-mod  { background-color: #FFFF99 !important; }   /* 普通 - 淺黃 */
-        .aqi-sens { background-color: #FFCC99 !important; }   /* 敏感 - 淺橘 */
-        .aqi-unh  { background-color: #FF9999 !important; }   /* 不良 - 淺紅 */
-        .aqi-very { background-color: #CC99FF !important; }   /* 非常不良 - 淺紫 */
+        /* 符合條件要求的顏色 */
+        .bg-normal { background-color: #99FF99 !important; } /* 低於標準：綠色 */
+        .bg-over   { background-color: #FFFF99 !important; } /* 高於標準：黃色 */
+        .label-red { background-color: #FF6666 !important; color: white !important; } /* 雙重超標：標題變紅 */
     </style>
 </head>
 <body>
 
-    <div class="map-title">台中港空氣品質監控 - 異常偵測儀表板</div>
+    <div class="map-title">台中港空氣品質監控 - 雙重預警儀表板</div>
     <div id="map"></div>
 
     <script>
@@ -91,25 +81,21 @@
         const map = L.map('map', { zoomControl: false }).setView([24.25, 120.53], 12);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-        // 根據 AQI 標準表判斷背景色
-        function getAQIClass(type, value) {
+        // 您提供圖片中的標準值
+        const fixedThresholds = {
+            'O3': 0.100,
+            'PM25': 30,
+            'PM10': 75,
+            'CO': 31,
+            'SO2': 0.065,
+            'NO2': 0.100
+        };
+
+        // 判斷測值背景顏色的邏輯
+        function getValBgClass(type, value) {
             const v = parseFloat(value);
             if (isNaN(v)) return "";
-            const ranges = {
-                'O3':   [50, 125, 164, 204, 404],
-                'PM25': [15.4, 35.4, 54.4, 150.4, 250.4],
-                'PM10': [50, 100, 254, 354, 424],
-                'CO':   [4.4, 9.4, 12.4, 15.4, 30.4],
-                'SO2':  [20, 75, 185, 304, 604],
-                'NO2':  [30, 100, 360, 649, 1249]
-            };
-            const r = ranges[type];
-            if (!r) return "";
-            if (v <= r[0]) return "aqi-good";
-            if (v <= r[1]) return "aqi-mod";
-            if (v <= r[2]) return "aqi-sens";
-            if (v <= r[3]) return "aqi-unh";
-            return "aqi-very";
+            return v > fixedThresholds[type] ? "bg-over" : "bg-normal";
         }
 
         fetch('air_quality.json?t=' + Date.now())
@@ -121,18 +107,23 @@
                 allStations.forEach(st => {
                     if (!st.x || !st.y) return;
 
-                    // 比較邏輯：檢查各項目是否高於沙鹿站 1.5 倍
                     const checkItems = ['O3', 'PM25', 'PM10', 'CO', 'SO2', 'NO2'];
-                    const highFlags = {}; 
-                    let anyHigh = false;
+                    const headerClasses = {}; 
+                    let triggerRedDot = false;
 
                     checkItems.forEach(key => {
                         const cur = parseFloat(st[key]);
                         const sha = parseFloat(shalu[key]);
-                        if (!isNaN(cur) && !isNaN(sha) && sha > 0) {
-                            if (cur > sha * 1.5) {
-                                highFlags[key] = "label-danger"; // 標記為需要變色的標題
-                                anyHigh = true;
+                        const std = fixedThresholds[key];
+
+                        if (!isNaN(cur)) {
+                            // 雙重條件判定：大於標準 且 大於沙鹿 1.5 倍
+                            const isHigherThanStd = cur > std;
+                            const isHigherThanShalu15 = (!isNaN(sha) && sha > 0) ? (cur > sha * 1.5) : false;
+
+                            if (isHigherThanStd && isHigherThanShalu15) {
+                                headerClasses[key] = "label-red";
+                                triggerRedDot = true;
                             }
                         }
                     });
@@ -144,25 +135,25 @@
                         html: `
                             <div class="marker-container">
                                 <div class="station-name">${st.station}</div>
-                                <div class="marker-dot ${anyHigh ? 'dot-danger' : ''}"></div>
+                                <div class="marker-dot ${triggerRedDot ? 'dot-danger' : ''}"></div>
                                 <table class="info-table-card">
                                     <tr class="row-header">
-                                        <td>測項</td>
-                                        <td class="${highFlags['O3'] || ''}">O₃</td>
-                                        <td class="${highFlags['PM25'] || ''}">PM₂.₅</td>
-                                        <td class="${highFlags['PM10'] || ''}">PM₁₀</td>
-                                        <td class="${highFlags['CO'] || ''}">CO</td>
-                                        <td class="${highFlags['SO2'] || ''}">SO₂</td>
-                                        <td class="${highFlags['NO2'] || ''}">NO₂</td>
+                                        <td style="background:#eee">測項</td>
+                                        <td class="${headerClasses['O3'] || ''}">O₃</td>
+                                        <td class="${headerClasses['PM25'] || ''}">PM₂.₅</td>
+                                        <td class="${headerClasses['PM10'] || ''}">PM₁₀</td>
+                                        <td class="${headerClasses['CO'] || ''}">CO</td>
+                                        <td class="${headerClasses['SO2'] || ''}">SO₂</td>
+                                        <td class="${headerClasses['NO2'] || ''}">NO₂</td>
                                     </tr>
                                     <tr class="row-value">
-                                        <td style="font-weight:normal; font-size:10px; background:#f8f9fa">測值</td>
-                                        <td class="${getAQIClass('O3', st.O3)}">${st.O3 || '-'}</td>
-                                        <td class="${getAQIClass('PM25', st.PM25)}">${st.PM25 || '-'}</td>
-                                        <td class="${getAQIClass('PM10', st.PM10)}">${st.PM10 || '-'}</td>
-                                        <td class="${getAQIClass('CO', st.CO)}">${st.CO || '-'}</td>
-                                        <td class="${getAQIClass('SO2', st.SO2)}">${st.SO2 || '-'}</td>
-                                        <td class="${getAQIClass('NO2', st.NO2)}">${st.NO2 || '-'}</td>
+                                        <td style="font-weight:normal; font-size:10px; background:#fff">值</td>
+                                        <td class="${getValBgClass('O3', st.O3)}">${st.O3 || '-'}</td>
+                                        <td class="${getValBgClass('PM25', st.PM25)}">${st.PM25 || '-'}</td>
+                                        <td class="${getValBgClass('PM10', st.PM10)}">${st.PM10 || '-'}</td>
+                                        <td class="${getValBgClass('CO', st.CO)}">${st.CO || '-'}</td>
+                                        <td class="${getValBgClass('SO2', st.SO2)}">${st.SO2 || '-'}</td>
+                                        <td class="${getValBgClass('NO2', st.NO2)}">${st.NO2 || '-'}</td>
                                     </tr>
                                 </table>
                             </div>
